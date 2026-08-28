@@ -13,3 +13,4 @@ MonoBehaviour:
   m_Name: Demo_LeverPulled
   m_EditorClassIdentifier: 
   description: Raised by the lever's Interactable. The lamp and the locked chest react - neither knows the lever exists.
+  stableId: c666da695ec5405e805fa33d2884d843

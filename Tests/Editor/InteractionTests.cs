@@ -295,6 +295,40 @@ namespace LiminalLabs.Interaction.Tests
         }
 
         [Test]
+        public void PerformInteraction_SkipsValidation_TheAuthorityPath()
+        {
+            Interaction open = Verb("Open");
+            Interactable chest = Target("Chest", open);
+            BlockingCondition condition = chest.gameObject.AddComponent<BlockingCondition>();
+            chest.RefreshConditions();
+            condition.available = false;   // locally the chest still looks locked
+
+            int interacted = 0;
+            chest.Interacted += _ => interacted++;
+
+            var context = new InteractionContext(null, chest, open, chest.InteractionPoint);
+            Assert.AreEqual(InteractionRejection.VerbUnavailable, chest.Evaluate(context),
+                "local validation would refuse this");
+            chest.PerformInteraction(context);
+            Assert.AreEqual(1, interacted,
+                "the authority-already-decided path fires reactions regardless of local state");
+        }
+
+        [Test]
+        public void VerbIndex_RoundTripsForCompactSerialization()
+        {
+            Interaction open = Verb("Open"), inspect = Verb("Inspect", 5);
+            Interactable door = Target("Door", open, inspect);
+
+            int index = door.IndexOfVerb(inspect);
+            Assert.AreEqual(1, index);
+            Assert.AreEqual(inspect, door.GetVerb(index), "index resolves back to the same verb");
+            Assert.AreEqual(-1, door.IndexOfVerb(Verb("Unrelated")));
+            Assert.IsNull(door.GetVerb(99));
+            Assert.IsNull(door.GetVerb(-1));
+        }
+
+        [Test]
         public void InteractedListeners_AreExceptionIsolated()
         {
             Interaction open = Verb("Open");

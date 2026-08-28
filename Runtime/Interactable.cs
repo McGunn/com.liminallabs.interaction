@@ -101,6 +101,30 @@ namespace LiminalLabs.Interaction
             return InteractionRejection.None;
         }
 
+        /// <summary>
+        /// Index of a verb in this interactable's list, or -1 — the compact way to
+        /// say "which verb" over a network or in a save (send the index, resolve
+        /// with <see cref="GetVerb"/> on the other side; verb lists are identical
+        /// asset data on every machine).
+        /// </summary>
+        public int IndexOfVerb(Interaction verb) => verbs.IndexOf(verb);
+
+        /// <summary>The verb at an index, or null when out of range.</summary>
+        public Interaction GetVerb(int index) => index >= 0 && index < verbs.Count ? verbs[index] : null;
+
+        /// <summary>
+        /// Fires this interactable's reactions WITHOUT validation — the
+        /// authority-already-decided path. Use it on remote clients when a
+        /// replicated interaction arrives: the server validated and executed, so
+        /// local condition state (possibly not yet synced) must not veto the
+        /// result. All local flows go through <see cref="Interactor"/>, which
+        /// validates.
+        /// </summary>
+        public void PerformInteraction(in InteractionContext context)
+        {
+            HandleInteracted(context);
+        }
+
         internal void NotifyFocus(Interactor interactor, bool gained)
         {
             if (gained)

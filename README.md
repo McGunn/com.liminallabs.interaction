@@ -51,6 +51,25 @@ UnityEvents on interactables, `Candidates` for verb menus — and ships no UI.
 Prompts, outlines, cursors, and radial menus are listeners; reference
 presenters come with the demo sample rather than the runtime.
 
+## Multiplayer
+
+The pipeline maps onto client/server/remote-client cleanly, with no netcode
+dependency:
+
+- **Client (predict):** the request-handler seam is your network hook — a
+  handler that sends the request to the server instead of executing. Local
+  `Evaluate` gives instant client-side denial UX for free.
+- **Server (validate + execute):** give the server's player objects
+  Interactors and call `StartInteraction(target, verb)` — the server runs
+  the identical validation the client predicted with.
+- **Remote clients (perform):** on receiving the replicated result, call
+  `interactable.PerformInteraction(context)` — the authority-already-decided
+  path that fires all reactions **without** validation, so unsynced local
+  condition state can never veto what the server ruled.
+- **On the wire:** the interactable is your netcode's object reference;
+  the verb travels as one byte via `IndexOfVerb` / `GetVerb(index)` (verb
+  lists are identical asset data on every machine).
+
 ## Nothing fails silently
 
 Every refused attempt records why (`Interactor.LastRejection`): out of range,
