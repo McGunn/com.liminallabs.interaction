@@ -28,6 +28,12 @@ namespace LiminalLabs.Interaction
         [SerializeField] private LayerMask layerMask = ~0;
         [SerializeField] private QueryTriggerInteraction triggerInteraction = QueryTriggerInteraction.Ignore;
 
+        [SerializeField, Tooltip("Hits on or under this transform are treated as transparent — set it to the character root so the interactor's own body (avatar colliders included) never blocks its rays.")]
+        private Transform ignoreRoot;
+
+        /// <summary>The interactor's own body root; its colliders never block rays.</summary>
+        public Transform IgnoreRoot { get => ignoreRoot; set => ignoreRoot = value; }
+
         [Header("Fat Cursor (CameraCenter only)")]
         [SerializeField, Min(0f), Tooltip("When the central ray misses, retry through a ring of points within this many screen pixels. 0 = off.")]
         private float screenTolerancePixels = 22f;
@@ -84,12 +90,15 @@ namespace LiminalLabs.Interaction
             int count = Physics.RaycastNonAlloc(ray, hits, maxDistance, layerMask, triggerInteraction);
             if (count == 0) return false;
 
-            // Nearest hit decides: if it isn't (part of) an interactable, the view is blocked.
-            int nearest = 0;
-            for (int i = 1; i < count; i++)
+            // Nearest non-self hit decides: the interactor's own body is transparent,
+            // anything else that isn't (part of) an interactable blocks the view.
+            int nearest = -1;
+            for (int i = 0; i < count; i++)
             {
-                if (hits[i].distance < hits[nearest].distance) nearest = i;
+                if (ignoreRoot != null && hits[i].collider.transform.IsChildOf(ignoreRoot)) continue;
+                if (nearest < 0 || hits[i].distance < hits[nearest].distance) nearest = i;
             }
+            if (nearest < 0) return false;
             Interactable interactable = InteractableRegistry.Resolve(hits[nearest].collider);
             if (interactable == null) return false;
 

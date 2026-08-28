@@ -26,6 +26,12 @@ namespace LiminalLabs.Interaction
         [SerializeField] private LayerMask layerMask = ~0;
         [SerializeField] private QueryTriggerInteraction triggerInteraction = QueryTriggerInteraction.Ignore;
 
+        [SerializeField, Tooltip("Hits on or under this transform are treated as transparent (e.g. the controlled character, so clicking through them still targets the world).")]
+        private Transform ignoreRoot;
+
+        /// <summary>Colliders under this root never block or receive the pointer ray.</summary>
+        public Transform IgnoreRoot { get => ignoreRoot; set => ignoreRoot = value; }
+
 #if LIMINAL_UGUI
         [SerializeField, Tooltip("Ignore the pointer while it is over uGUI, so clicks never fall through menus.")]
         private bool blockedByUI = true;
@@ -71,11 +77,13 @@ namespace LiminalLabs.Interaction
             int count = Physics.RaycastNonAlloc(ray, hits, maxDistance, layerMask, triggerInteraction);
             if (count == 0) return;
 
-            int nearest = 0;
-            for (int i = 1; i < count; i++)
+            int nearest = -1;
+            for (int i = 0; i < count; i++)
             {
-                if (hits[i].distance < hits[nearest].distance) nearest = i;
+                if (ignoreRoot != null && hits[i].collider.transform.IsChildOf(ignoreRoot)) continue;
+                if (nearest < 0 || hits[i].distance < hits[nearest].distance) nearest = i;
             }
+            if (nearest < 0) return;
             Interactable interactable = InteractableRegistry.Resolve(hits[nearest].collider);
             if (interactable == null) return;
 
