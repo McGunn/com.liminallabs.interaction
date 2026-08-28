@@ -1,0 +1,19 @@
+{
+    "name": "LiminalLabs.Interaction.Demo",
+    "rootNamespace": "",
+    "references": [
+        "LiminalLabs.Interaction",
+        "LiminalLabs.Core",
+        "LiminalLabs.GameEvents",
+        "Unity.InputSystem"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": false,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

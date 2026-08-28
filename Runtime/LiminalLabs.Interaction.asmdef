@@ -1,0 +1,25 @@
+{
+    "name": "LiminalLabs.Interaction",
+    "rootNamespace": "",
+    "references": [
+        "LiminalLabs.Core",
+        "LiminalLabs.GameEvents",
+        "UnityEngine.UI",
+        "Unity.InputSystem"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [
+        {
+            "name": "com.unity.ugui",
+            "expression": "1.0.0",
+            "define": "LIMINAL_UGUI"
+        }
+    ],
+    "noEngineReferences": false
+}

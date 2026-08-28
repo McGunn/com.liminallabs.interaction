@@ -1,0 +1,19 @@
+{
+  "name": "com.liminallabs.interaction",
+  "version": "0.1.0",
+  "displayName": "Liminal Labs Interaction",
+  "description": "Genre-agnostic interaction: one core (interactables, verb assets, validation, hold-to-interact, request-handler seam) with pluggable detection per genre - ray (FPS), proximity (third person), pointer (point-and-click / CRPG) - and presentation as hooks, never baked in. Built on Liminal Labs Game Events for decoupled reactions; every rejection is answerable via the debug overlay.",
+  "unity": "6000.0",
+  "author": { "name": "Liminal Labs" },
+  "dependencies": {
+    "com.liminallabs.core": "0.1.2",
+    "com.liminallabs.gameevents": "0.2.0"
+  },
+  "samples": [
+    {
+      "displayName": "Interaction Demo",
+      "description": "Same objects, four genres: Tab switches between FPS, third person, point-and-click, and CRPG rigs interacting with one set of interactables - a door, a lever that unlocks a chest and lights a lamp via GameEvents, a hold-to-pick-up gem, and an NPC. F3 opens the diagnostics overlay. Materials use URP.",
+      "path": "Samples~/Interaction Demo"
+    }
+  ]
+}
