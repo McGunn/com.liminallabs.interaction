@@ -66,7 +66,10 @@ namespace LiminalLabs.Interaction
 
                 if (interactor.LastRejection != InteractionRejection.None)
                 {
-                    GUILayout.Label($"  <color=#ffb060>last rejection: {interactor.LastRejection}</color>", Rich());
+                    string blocker = interactor.LastBlocker != null
+                        ? "  ·  by " + Interactor.Describe(interactor.LastBlocker)
+                        : "";
+                    GUILayout.Label($"  <color=#ffb060>last rejection: {interactor.LastRejection}{blocker}</color>", Rich());
                 }
             }
             GUILayout.EndArea();

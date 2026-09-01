@@ -17,7 +17,8 @@ namespace LiminalLabs.Interaction
     /// This component reads NO input — the game calls <see cref="StartInteraction()"/>
     /// and <see cref="CancelInteraction"/> from whatever input it owns, which is what
     /// keeps it genre- and device-agnostic. Every failed attempt records WHY in
-    /// <see cref="LastRejection"/>; nothing fails silently.
+    /// <see cref="LastRejection"/> (and which condition, in <see cref="LastBlocker"/>);
+    /// nothing fails silently.
     /// </summary>
     [AddComponentMenu("Liminal Labs/Interaction/Interactor")]
     public sealed class Interactor : MonoBehaviour
@@ -35,15 +36,15 @@ namespace LiminalLabs.Interaction
         private Transform rangeOrigin;
 
         private static readonly List<Interactor> active = new List<Interactor>();
-        private static readonly Comparison<InteractionCandidate> ByScoreDescending =
-            (a, b) => b.score.CompareTo(a.score);
 
         private readonly List<InteractionCandidate> candidates = new List<InteractionCandidate>(8);
         private float nextDetection;
         private HoldTimer holdTimer;
         private InteractionContext pendingHold;
+        private bool holdFollowsFocus;
         private IInteractionRequestHandler requestHandler;
         private bool handlerSearched;
+        private IsolatedEvent<Interactable, Interactable> focusChanged;
 
         /// <summary>All enabled interactors (for the debug overlay and tooling).</summary>
         public static IReadOnlyList<Interactor> Active => active;
@@ -51,8 +52,8 @@ namespace LiminalLabs.Interaction
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
         private static void ResetStatics() => active.Clear();
 
-        /// <summary>This frame's ranked candidates (best first). Presenters read this
-        /// for verb menus and multi-target UI.</summary>
+        /// <summary>This frame's ranked candidates (best first; equal scores keep the
+        /// detector's order). Presenters read this for verb menus and multi-target UI.</summary>
         public IReadOnlyList<InteractionCandidate> Candidates => candidates;
 
         /// <summary>The best current candidate, or null.</summary>
@@ -64,13 +65,25 @@ namespace LiminalLabs.Interaction
         /// <summary>Why the most recent attempt didn't happen (None after a success).</summary>
         public InteractionRejection LastRejection { get; private set; }
 
+        /// <summary>
+        /// The condition that refused the most recent attempt, when <see cref="LastRejection"/>
+        /// is <see cref="InteractionRejection.VerbUnavailable"/>; null otherwise. The thing a
+        /// prompt names, a designer selects, and a game casts to ask for a reason.
+        /// </summary>
+        public IInteractionCondition LastBlocker { get; private set; }
+
         /// <summary>Hold progress 0–1 while a hold-to-interact is running, else 0.</summary>
         public float HoldProgress01 => holdTimer.Progress01;
 
         public bool IsHolding => holdTimer.IsActive;
 
-        /// <summary>Raised when focus changes: (previous, next); either may be null.</summary>
-        public event Action<Interactable, Interactable> FocusChanged;
+        /// <summary>Raised when focus changes: (previous, next); either may be null. Listeners
+        /// are called one at a time; one that throws is logged and the rest still run.</summary>
+        public event Action<Interactable, Interactable> FocusChanged
+        {
+            add => focusChanged.Add(value);
+            remove => focusChanged.Remove(value);
+        }
 
         public Vector3 RangePosition => rangeOrigin != null ? rangeOrigin.position : transform.position;
 
@@ -117,34 +130,61 @@ namespace LiminalLabs.Interaction
             SetFocus(null, default);
         }
 
-        void Update()
+        void Update() => Tick(Time.unscaledTime, Time.deltaTime);
+
+        /// <summary>
+        /// One frame of the interactor, with time passed in rather than read - so the pipeline
+        /// can be driven without a frame. The tests do; so can a game that wants interaction
+        /// to stand still while a menu is up.
+        /// </summary>
+        internal void Tick(float now, float deltaTime)
         {
-            if (Time.unscaledTime >= nextDetection)
+            if (now >= nextDetection)
             {
-                nextDetection = Time.unscaledTime + 1f / Mathf.Max(1f, detectionsPerSecond);
+                nextDetection = now + DetectionInterval;
                 Detect();
             }
 
-            if (holdTimer.IsActive)
+            if (!holdTimer.IsActive) return;
+
+            // A hold breaks when its target stops being valid, and - when it was started on
+            // whatever was focused - when focus moves off it. A hold started on an explicit
+            // target (a verb menu, a CRPG context menu) does not depend on focus at all: the
+            // player chose that target by name, and looking elsewhere while holding is not a
+            // change of mind. Either way the reason is recorded, like any other refusal.
+            if (holdFollowsFocus && pendingHold.interactable != Focused)
             {
-                // A hold breaks if the target stops being focused or becomes invalid.
-                if (pendingHold.interactable != Focused || Validate(pendingHold) != InteractionRejection.None)
-                {
-                    CancelInteraction();
-                }
-                else if (holdTimer.Tick(Time.deltaTime))
-                {
-                    InteractionContext context = pendingHold;
-                    pendingHold = default;
-                    Dispatch(context);
-                }
+                CancelInteraction();
+                Record(InteractionRejection.FocusLost, null);
+                return;
+            }
+
+            InteractionRejection rejection = Validate(pendingHold, out IInteractionCondition blocker);
+            if (rejection != InteractionRejection.None)
+            {
+                CancelInteraction();
+                Record(rejection, blocker);
+                return;
+            }
+
+            if (holdTimer.Tick(deltaTime))
+            {
+                InteractionContext context = pendingHold;
+                pendingHold = default;
+                holdFollowsFocus = false;
+                Dispatch(context);
             }
         }
 
-        /// <summary>Forces a detection pass now (e.g. right after teleporting).</summary>
+        private float DetectionInterval => 1f / Mathf.Max(1f, detectionsPerSecond);
+
+        /// <summary>Runs a detection pass now rather than at the next scheduled one — right
+        /// after teleporting, or when something just appeared and a prompt should not wait a
+        /// tick for it. The regular cadence resumes from here.</summary>
         public void DetectNow()
         {
-            nextDetection = 0f;
+            nextDetection = Time.unscaledTime + DetectionInterval;
+            Detect();
         }
 
         private void Detect()
@@ -154,7 +194,7 @@ namespace LiminalLabs.Interaction
             if (activeDetector != null && activeDetector.isActiveAndEnabled)
             {
                 activeDetector.GatherCandidates(this, candidates);
-                if (candidates.Count > 1) candidates.Sort(ByScoreDescending);
+                if (candidates.Count > 1) InteractionScoring.SortByScoreDescending(candidates);
             }
 
             if (candidates.Count > 0) SetFocus(candidates[0].interactable, candidates[0]);
@@ -170,31 +210,29 @@ namespace LiminalLabs.Interaction
             Focused = next;
             if (previous != null) previous.NotifyFocus(this, gained: false);
             if (next != null) next.NotifyFocus(this, gained: true);
-            try
-            {
-                FocusChanged?.Invoke(previous, next);
-            }
-            catch (Exception exception)
-            {
-                Debug.LogError($"[Interaction] '{name}': FocusChanged listener threw.\n{exception}", this);
-            }
+            focusChanged.Invoke(previous, next, "FocusChanged", this);
         }
 
         // ---- the pipeline -----------------------------------------------------------
 
         /// <summary>Begin interacting with the current focus using its primary verb.
         /// Call from your input's press; pair with <see cref="CancelInteraction"/> on
-        /// release for hold-to-interact verbs.</summary>
-        public InteractionRejection StartInteraction() => StartInteraction(Focused, null);
+        /// release for hold-to-interact verbs. A hold started this way breaks if focus
+        /// moves off the target.</summary>
+        public InteractionRejection StartInteraction() => Begin(Focused, null, holdFollowsFocus: true);
 
         /// <summary>Begin interacting with a specific target/verb (verb menus, CRPG
-        /// context menus). Null verb = the target's primary verb.</summary>
-        public InteractionRejection StartInteraction(Interactable target, Interaction verb)
+        /// context menus). Null verb = the target's primary verb. A hold started this way
+        /// does not care what is focused: the target was chosen explicitly.</summary>
+        public InteractionRejection StartInteraction(Interactable target, Interaction verb) =>
+            Begin(target, verb, holdFollowsFocus: false);
+
+        private InteractionRejection Begin(Interactable target, Interaction verb, bool holdFollowsFocus)
         {
             CancelInteraction();
 
             InteractionContext context = BuildContext(target, verb);
-            InteractionRejection rejection = Validate(context);
+            InteractionRejection rejection = Validate(context, out IInteractionCondition blocker);
 
             // Out of range is special: with a request handler present, "valid but too
             // far" is exactly the handler's job (walk there, then Execute) — so it
@@ -205,16 +243,15 @@ namespace LiminalLabs.Interaction
             }
             if (rejection != InteractionRejection.None)
             {
-                LastRejection = rejection;
-                return rejection;
+                return Record(rejection, blocker);
             }
 
             if (context.verb.HoldSeconds > 0f)
             {
                 pendingHold = context;
+                this.holdFollowsFocus = holdFollowsFocus;
                 holdTimer.Begin(context.verb.HoldSeconds);
-                LastRejection = InteractionRejection.None;
-                return InteractionRejection.None;
+                return Record(InteractionRejection.None, null);
             }
             return Dispatch(context);
         }
@@ -224,6 +261,7 @@ namespace LiminalLabs.Interaction
         {
             holdTimer.Cancel();
             pendingHold = default;
+            holdFollowsFocus = false;
         }
 
         /// <summary>Executes a validated context — the completion call for request
@@ -231,8 +269,8 @@ namespace LiminalLabs.Interaction
         /// rejects properly).</summary>
         public InteractionRejection Execute(in InteractionContext context)
         {
-            InteractionRejection rejection = Validate(context);
-            LastRejection = rejection;
+            InteractionRejection rejection = Validate(context, out IInteractionCondition blocker);
+            Record(rejection, blocker);
             if (rejection != InteractionRejection.None) return rejection;
 
             context.interactable.HandleInteracted(context);
@@ -244,11 +282,18 @@ namespace LiminalLabs.Interaction
             IInteractionRequestHandler handler = RequestHandler;
             if (handler != null)
             {
-                LastRejection = InteractionRejection.None;
+                Record(InteractionRejection.None, null);
                 handler.HandleRequest(context);   // the game completes via Execute
                 return InteractionRejection.None;
             }
             return Execute(context);
+        }
+
+        private InteractionRejection Record(InteractionRejection rejection, IInteractionCondition blocker)
+        {
+            LastRejection = rejection;
+            LastBlocker = rejection == InteractionRejection.VerbUnavailable ? blocker : null;
+            return rejection;
         }
 
         private InteractionContext BuildContext(Interactable target, Interaction verb)
@@ -262,8 +307,13 @@ namespace LiminalLabs.Interaction
         }
 
         /// <summary>Full validation for a context, in rejection-priority order.</summary>
-        public InteractionRejection Validate(in InteractionContext context)
+        public InteractionRejection Validate(in InteractionContext context) => Validate(context, out _);
+
+        /// <summary><see cref="Validate(in InteractionContext)"/>, also naming the condition
+        /// that refused when the answer is <see cref="InteractionRejection.VerbUnavailable"/>.</summary>
+        public InteractionRejection Validate(in InteractionContext context, out IInteractionCondition blocker)
         {
+            blocker = null;
             if (context.interactable == null) return InteractionRejection.NoTarget;
             if (context.verb == null) return InteractionRejection.NoVerb;
 
@@ -272,7 +322,17 @@ namespace LiminalLabs.Interaction
                 float distance = Vector3.Distance(RangePosition, context.interactable.InteractionPoint);
                 if (distance > maxInteractDistance) return InteractionRejection.OutOfRange;
             }
-            return context.interactable.Evaluate(context);
+            return context.interactable.Evaluate(context, out blocker);
+        }
+
+        /// <summary>A condition, named the way a designer would find it: the component type
+        /// and the object it sits on.</summary>
+        public static string Describe(IInteractionCondition condition)
+        {
+            if (condition == null) return "none";
+            if (condition is Component component && component != null)
+                return component.GetType().Name + " on " + component.name;
+            return condition.GetType().Name;
         }
     }
 }

@@ -13,6 +13,10 @@ namespace LiminalLabs.Interaction
         VerbNotOffered,
         VerbUnavailable,
         NoVerb,
+
+        /// <summary>A hold-to-interact started on the focus was abandoned because focus moved
+        /// off its target before it completed.</summary>
+        FocusLost,
     }
 
     /// <summary>Everything about one interaction attempt: who, what, which verb, where.</summary>

@@ -34,7 +34,7 @@ Requires `com.liminallabs.core` and `com.liminallabs.gameevents`.
 | --- | --- |
 | `Interaction` (asset) | A verb: localized name, icon, cursor id, sort order, hold seconds. Reusable everywhere |
 | `Interactable` | What can be interacted with: verbs, optional tighter range, focus + interacted events |
-| `IInteractionCondition` | Availability rules as sibling components (locks, power, quest state) |
+| `IInteractionCondition` | Availability rules as sibling components (locks, power, quest state). A disabled one is a rule switched off |
 | `Interactor` | The agent (one per party member, not "the player"): focus tracking, candidates, the pipeline |
 | `InteractionDetector` | Pluggable finding: Ray (with fat-cursor forgiveness rays), Proximity (distance+facing scoring with anti-flicker stickiness), Pointer (uGUI-aware). Or write your own |
 | `IInteractionRequestHandler` | The CRPG seam: intercept validated requests, walk to the target, complete with `interactor.Execute(context)` — which re-validates |
@@ -42,14 +42,19 @@ Requires `com.liminallabs.core` and `com.liminallabs.gameevents`.
 
 Hold-to-interact is first-class: give a verb `holdSeconds` and
 `StartInteraction`/`CancelInteraction` from your input does the rest;
-`HoldProgress01` drives your prompt's fill ring.
+`HoldProgress01` drives your prompt's fill ring. A hold started on the focus
+breaks when focus moves; one started on a named target
+(`StartInteraction(target, verb)`, as a verb menu does) follows only that
+target's validity.
 
 ## Presentation is yours
 
 The core exposes hooks — `FocusChanged` on the interactor, focus events and
 UnityEvents on interactables, `Candidates` for verb menus — and ships no UI.
 Prompts, outlines, cursors, and radial menus are listeners; reference
-presenters come with the demo sample rather than the runtime.
+presenters come with the demo sample rather than the runtime. Firing a hook
+allocates nothing, and a listener that throws is logged rather than allowed to
+stop the ones after it.
 
 ## Multiplayer
 
@@ -73,8 +78,13 @@ dependency:
 ## Nothing fails silently
 
 Every refused attempt records why (`Interactor.LastRejection`): out of range,
-verb not offered, condition failed, target disabled. **F3** (with an
+verb not offered, condition failed, target disabled, focus lost mid-hold. When
+a condition refused, `LastBlocker` is the one that did, and
+`Interactor.Describe` names it the way a designer would find it — "KeyLock on
+Chest" — so a prompt can say *locked* instead of nothing, and a designer with
+three conditions on a chest is told which one said no. **F3** (with an
 Interaction Debug Overlay in the scene) shows every interactor's focus,
-ranked candidates with scores, hold progress, and last rejection, live. The
-Interactor inspector shows the same in play mode, and Setup & Validation
-flags detector-less interactors and collider-less or verb-less interactables.
+ranked candidates with scores, hold progress, and last rejection with its
+blocker, live. The Interactor inspector shows the same in play mode with a
+button that selects the blocking condition, and Setup & Validation flags
+detector-less interactors and collider-less or verb-less interactables.

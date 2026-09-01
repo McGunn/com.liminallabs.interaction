@@ -50,7 +50,10 @@ namespace LiminalLabs.Interaction
             get
             {
                 if (cameraOverride != null) return cameraOverride;
-                if (cachedMain == null) cachedMain = Camera.main;
+                // Re-asked when the remembered camera is gone or switched off, so a camera
+                // swap (cutscene rig, vehicle) is followed rather than aimed through a
+                // camera that no longer renders.
+                if (cachedMain == null || !cachedMain.isActiveAndEnabled) cachedMain = Camera.main;
                 return cachedMain;
             }
         }

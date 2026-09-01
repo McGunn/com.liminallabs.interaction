@@ -46,7 +46,16 @@ namespace LiminalLabs.Interaction
                 }
                 if (interactor.LastRejection != InteractionRejection.None)
                 {
-                    EditorGUILayout.HelpBox($"Last rejection: {interactor.LastRejection}", MessageType.Warning);
+                    string blocker = interactor.LastBlocker != null
+                        ? $"\nRefused by {Interactor.Describe(interactor.LastBlocker)}."
+                        : "";
+                    EditorGUILayout.HelpBox($"Last rejection: {interactor.LastRejection}{blocker}", MessageType.Warning);
+                    if (interactor.LastBlocker is Component component && component != null &&
+                        GUILayout.Button("Select the condition", EditorStyles.miniButton))
+                    {
+                        Selection.activeObject = component;
+                        EditorGUIUtility.PingObject(component);
+                    }
                 }
             }
         }

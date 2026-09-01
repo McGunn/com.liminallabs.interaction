@@ -40,11 +40,31 @@ namespace LiminalLabs.Interaction
         [SerializeField, Tooltip("Raised on every successful interaction, so distant systems react with no scene links.")]
         private GameEvent raiseOnInteracted;
 
-        /// <summary>Code-side interaction notification (exception-isolated per listener).</summary>
-        public event Action<InteractionContext> Interacted;
+        private IsolatedEvent<InteractionContext> interacted;
+        private IsolatedEvent<Interactor> focusGained;
+        private IsolatedEvent<Interactor> focusLost;
 
-        public event Action<Interactor> FocusGained;
-        public event Action<Interactor> FocusLost;
+        /// <summary>Code-side interaction notification. Listeners are called one at a time;
+        /// one that throws is logged and the rest still run, and firing allocates nothing.</summary>
+        public event Action<InteractionContext> Interacted
+        {
+            add => interacted.Add(value);
+            remove => interacted.Remove(value);
+        }
+
+        /// <summary>An interactor's focus arrived here. Same guarantees as <see cref="Interacted"/>.</summary>
+        public event Action<Interactor> FocusGained
+        {
+            add => focusGained.Add(value);
+            remove => focusGained.Remove(value);
+        }
+
+        /// <summary>An interactor's focus left. Same guarantees as <see cref="Interacted"/>.</summary>
+        public event Action<Interactor> FocusLost
+        {
+            add => focusLost.Add(value);
+            remove => focusLost.Remove(value);
+        }
 
         private IInteractionCondition[] conditions;
         private bool conditionsCached;
@@ -67,7 +87,9 @@ namespace LiminalLabs.Interaction
         void OnEnable() => InteractableRegistry.Register(this);
         void OnDisable() => InteractableRegistry.Unregister(this);
 
-        /// <summary>Call after adding/removing IInteractionCondition components at runtime.</summary>
+        /// <summary>Call after adding or removing <see cref="IInteractionCondition"/> components
+        /// at runtime. Toggling an existing one's <c>enabled</c> needs no call: a disabled
+        /// condition is skipped when evaluated.</summary>
         public void RefreshConditions()
         {
             conditionsCached = false;
@@ -77,8 +99,20 @@ namespace LiminalLabs.Interaction
         /// Whether the attempt in <paramref name="context"/> would be allowed, and if
         /// not, exactly why — the answer the debug overlay and inspectors surface.
         /// </summary>
-        public InteractionRejection Evaluate(in InteractionContext context)
+        public InteractionRejection Evaluate(in InteractionContext context) => Evaluate(context, out _);
+
+        /// <summary>
+        /// <see cref="Evaluate(in InteractionContext)"/>, also naming the condition that refused
+        /// when the answer is <see cref="InteractionRejection.VerbUnavailable"/>.
+        ///
+        /// "Unavailable" alone is the difference between a prompt that says <i>locked</i> and
+        /// one that says nothing, and between a designer told which of the three conditions on
+        /// a chest is the one saying no and a designer guessing. Null for every other answer.
+        /// </summary>
+        public InteractionRejection Evaluate(in InteractionContext context, out IInteractionCondition blocker)
         {
+            blocker = null;
+
             if (!isActiveAndEnabled) return InteractionRejection.TargetDisabled;
             if (context.verb == null) return InteractionRejection.NoVerb;
             if (!verbs.Contains(context.verb)) return InteractionRejection.VerbNotOffered;
@@ -94,10 +128,24 @@ namespace LiminalLabs.Interaction
                 conditions = GetComponents<IInteractionCondition>();
                 conditionsCached = true;
             }
-            foreach (IInteractionCondition condition in conditions)
+
+            for (int i = 0; i < conditions.Length; i++)
             {
-                if (!condition.IsAvailable(context)) return InteractionRejection.VerbUnavailable;
+                IInteractionCondition condition = conditions[i];
+
+                // A disabled condition component is a rule switched off, the way a disabled
+                // collider is a collider that is not there - which makes the enabled checkbox
+                // a designer's way to lift a lock without a script. One that was destroyed
+                // since the cache was built is a rule that is gone.
+                if (condition is Behaviour behaviour && (behaviour == null || !behaviour.enabled)) continue;
+
+                if (!condition.IsAvailable(context))
+                {
+                    blocker = condition;
+                    return InteractionRejection.VerbUnavailable;
+                }
             }
+
             return InteractionRejection.None;
         }
 
@@ -129,49 +177,36 @@ namespace LiminalLabs.Interaction
         {
             if (gained)
             {
-                Isolated(FocusGained, interactor);
-                onFocusGained?.Invoke();
+                focusGained.Invoke(interactor, "FocusGained", this);
+                Safely(onFocusGained, "On Focus Gained");
             }
             else
             {
-                Isolated(FocusLost, interactor);
-                onFocusLost?.Invoke();
+                focusLost.Invoke(interactor, "FocusLost", this);
+                Safely(onFocusLost, "On Focus Lost");
             }
         }
 
         internal void HandleInteracted(in InteractionContext context)
         {
-            if (Interacted != null)
-            {
-                foreach (Delegate listener in Interacted.GetInvocationList())
-                {
-                    try
-                    {
-                        ((Action<InteractionContext>)listener)(context);
-                    }
-                    catch (Exception exception)
-                    {
-                        Debug.LogError($"[Interaction] '{name}': Interacted listener threw — remaining listeners still run.\n{exception}", this);
-                    }
-                }
-            }
-            onInteracted?.Invoke();
+            interacted.Invoke(context, "Interacted", this);
+            Safely(onInteracted, "On Interacted");
             if (raiseOnInteracted != null) raiseOnInteracted.Raise();
         }
 
-        private void Isolated(Action<Interactor> handlers, Interactor interactor)
+        /// <summary>A UnityEvent is one reaction among several here, and a mistake wired into
+        /// one must not cost the reactions after it - the global broadcast in particular.</summary>
+        private void Safely(UnityEvent reaction, string what)
         {
-            if (handlers == null) return;
-            foreach (Delegate listener in handlers.GetInvocationList())
+            if (reaction == null) return;
+
+            try
             {
-                try
-                {
-                    ((Action<Interactor>)listener)(interactor);
-                }
-                catch (Exception exception)
-                {
-                    Debug.LogError($"[Interaction] '{name}': focus listener threw — remaining listeners still run.\n{exception}", this);
-                }
+                reaction.Invoke();
+            }
+            catch (Exception exception)
+            {
+                Debug.LogError($"[Interaction] '{name}': {what} UnityEvent threw — the remaining reactions still run.\n{exception}", this);
             }
         }
     }

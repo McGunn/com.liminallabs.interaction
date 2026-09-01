@@ -52,6 +52,9 @@ namespace LiminalLabs.Interaction.Console
                     Row("last rejection", interactor.LastRejection == InteractionRejection.None
                         ? ConsoleMarkup.Good("none")
                         : ConsoleMarkup.Warn(interactor.LastRejection.ToString())),
+                    Row("refused by", interactor.LastBlocker != null
+                        ? ConsoleMarkup.Warn(Interactor.Describe(interactor.LastBlocker))
+                        : ConsoleMarkup.Dim("no condition")),
                 };
 
                 context.Table(rows, 16);
@@ -171,12 +174,14 @@ namespace LiminalLabs.Interaction.Console
                 var evaluation = new InteractionContext(
                     interactor, interactable, verb, interactable.InteractionPoint);
 
-                InteractionRejection rejection = interactable.Evaluate(evaluation);
+                InteractionRejection rejection = interactable.Evaluate(evaluation, out IInteractionCondition blocker);
 
-                rows.Add(new KeyValuePair<string, string>(verb.name,
-                    rejection == InteractionRejection.None
-                        ? ConsoleMarkup.Good("available")
-                        : ConsoleMarkup.Warn(rejection.ToString())));
+                string answer = rejection == InteractionRejection.None
+                    ? ConsoleMarkup.Good("available")
+                    : ConsoleMarkup.Warn(rejection.ToString());
+                if (blocker != null) answer += ConsoleMarkup.Dim("  by " + Interactor.Describe(blocker));
+
+                rows.Add(new KeyValuePair<string, string>(verb.name, answer));
             }
 
             context.Table(rows, 22);

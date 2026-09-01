@@ -30,7 +30,11 @@ namespace LiminalLabs.Interaction
         [SerializeField] private LayerMask layerMask = ~0;
         [SerializeField] private QueryTriggerInteraction triggerInteraction = QueryTriggerInteraction.Collide;
 
-        private readonly Collider[] overlaps = new Collider[32];
+        [SerializeField, Range(8, 256), Tooltip("Most colliders one pass considers. Anything past it is not seen at all, so raise it for dense shelves and crowds - a full pass logs once.")]
+        private int maxOverlaps = 32;
+
+        private Collider[] overlaps;
+        private bool warnedFull;
         private readonly HashSet<Interactable> seen = new HashSet<Interactable>();
 
         public float Radius => radius;
@@ -40,7 +44,17 @@ namespace LiminalLabs.Interaction
             Vector3 position = transform.position;
             Transform facing = facingSource != null ? facingSource : transform;
 
+            if (overlaps == null || overlaps.Length != maxOverlaps) overlaps = new Collider[Mathf.Max(1, maxOverlaps)];
+
             int count = Physics.OverlapSphereNonAlloc(position, radius, overlaps, layerMask, triggerInteraction);
+            if (count == overlaps.Length && !warnedFull)
+            {
+                // Said once: a buffer that fills is a scene where something in reach is
+                // invisible to the player, and that is the kind of failure that hides.
+                warnedFull = true;
+                Debug.LogWarning($"[Interaction] '{name}' found {count} colliders within {radius:0.##} m, the most it can consider - raise Max Overlaps or the layer mask is too broad. Some interactables here may never be offered.", this);
+            }
+
             seen.Clear();
             for (int i = 0; i < count; i++)
             {

@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 
 namespace LiminalLabs.Interaction
@@ -6,7 +7,8 @@ namespace LiminalLabs.Interaction
     /// The pure math behind detection — separated from the MonoBehaviours so the
     /// semantics are pinned by EditMode tests: proximity scoring (closer and more
     /// centered wins, current focus gets a stickiness bonus so near-ties don't
-    /// flicker), the fat-cursor ray ring, and the hold-to-interact timer.
+    /// flicker), the fat-cursor ray ring, candidate ranking, and the hold-to-interact
+    /// timer.
     /// </summary>
     public static class InteractionScoring
     {
@@ -33,6 +35,30 @@ namespace LiminalLabs.Interaction
             {
                 float angle = (Mathf.PI * 2f * i) / count + Mathf.PI * 0.5f;
                 results[i] = new Vector2(Mathf.Cos(angle), Mathf.Sin(angle)) * radiusPixels;
+            }
+        }
+
+        /// <summary>
+        /// Orders candidates best-first, keeping the detector's order among equal scores.
+        ///
+        /// Stability is the point. <c>List.Sort</c> is not stable, so two candidates with the
+        /// same score could swap places from one detection to the next — which a player sees
+        /// as focus flickering between two identical items on a shelf. Insertion sort is
+        /// stable, ideal for the handful of nearly sorted entries a detector produces, and
+        /// allocates nothing, where <c>List.Sort(Comparison)</c> allocates a comparer per call.
+        /// </summary>
+        public static void SortByScoreDescending(List<InteractionCandidate> candidates)
+        {
+            for (int i = 1; i < candidates.Count; i++)
+            {
+                InteractionCandidate moving = candidates[i];
+                int j = i - 1;
+                while (j >= 0 && candidates[j].score < moving.score)
+                {
+                    candidates[j + 1] = candidates[j];
+                    j--;
+                }
+                candidates[j + 1] = moving;
             }
         }
     }
