@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using UnityEngine;
+using LiminalLabs.Core.Localization;
 
 namespace LiminalLabs.Interaction
 {
@@ -17,7 +18,8 @@ namespace LiminalLabs.Interaction
     /// This component reads NO input — the game calls <see cref="StartInteraction()"/>
     /// and <see cref="CancelInteraction"/> from whatever input it owns, which is what
     /// keeps it genre- and device-agnostic. Every failed attempt records WHY in
-    /// <see cref="LastRejection"/> (and which condition, in <see cref="LastBlocker"/>);
+    /// <see cref="LastRejection"/>, which condition in <see cref="LastBlocker"/>, and the
+    /// player-facing reason in <see cref="LastReason"/> when the condition offers one;
     /// nothing fails silently.
     /// </summary>
     [AddComponentMenu("Liminal Labs/Interaction/Interactor")]
@@ -71,6 +73,25 @@ namespace LiminalLabs.Interaction
         /// prompt names, a designer selects, and a game casts to ask for a reason.
         /// </summary>
         public IInteractionCondition LastBlocker { get; private set; }
+
+        /// <summary>
+        /// Why the most recent attempt was refused, in the player's language, when the
+        /// condition that refused it offers one through <see cref="IInteractionRefusal"/>;
+        /// null otherwise. What a prompt shows under "Locked". For the reason of a focus the
+        /// player has not pressed on yet, see <see cref="ReasonOf"/>.
+        /// </summary>
+        public LocalizedText LastReason { get; private set; }
+
+        /// <summary><see cref="LastReason"/> resolved for the current locale, or null. For a
+        /// presenter that only wants the words.</summary>
+        public string LastReasonText
+        {
+            get
+            {
+                string text = LastReason != null ? LastReason.GetLocalized() : null;
+                return string.IsNullOrEmpty(text) ? null : text;
+            }
+        }
 
         /// <summary>Hold progress 0–1 while a hold-to-interact is running, else 0.</summary>
         public float HoldProgress01 => holdTimer.Progress01;
@@ -293,6 +314,7 @@ namespace LiminalLabs.Interaction
         {
             LastRejection = rejection;
             LastBlocker = rejection == InteractionRejection.VerbUnavailable ? blocker : null;
+            LastReason = ReasonOf(LastBlocker);
             return rejection;
         }
 
@@ -334,5 +356,11 @@ namespace LiminalLabs.Interaction
                 return component.GetType().Name + " on " + component.name;
             return condition.GetType().Name;
         }
+
+        /// <summary>The reason a condition gives for refusing, or null when it gives none.
+        /// For a prompt that validates the focus before the player presses anything:
+        /// <c>Validate(context, out var blocker)</c>, then this.</summary>
+        public static LocalizedText ReasonOf(IInteractionCondition condition) =>
+            condition is IInteractionRefusal refusal ? refusal.Reason : null;
     }
 }

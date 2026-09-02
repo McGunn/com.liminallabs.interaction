@@ -1,4 +1,5 @@
 using UnityEngine;
+using LiminalLabs.Core.Localization;
 
 namespace LiminalLabs.Interaction
 {
@@ -52,6 +53,24 @@ namespace LiminalLabs.Interaction
     public interface IInteractionCondition
     {
         bool IsAvailable(in InteractionContext context);
+    }
+
+    /// <summary>
+    /// A condition that can also say why, in the player's language.
+    ///
+    /// Optional, and separate from <see cref="IInteractionCondition"/> on purpose: a rule
+    /// that only answers yes or no is still a complete rule, and a prompt shows nothing
+    /// extra for it. One that implements this has its reason shown by the prompt, the F3
+    /// overlay, the inspector and the console, and recorded on the interactor as
+    /// <see cref="Interactor.LastReason"/> - so "Locked", "Needs power" and "Too heavy"
+    /// reach the player without the prompt knowing what a lock is.
+    /// </summary>
+    public interface IInteractionRefusal
+    {
+        /// <summary>Why this rule refuses right now. Read after
+        /// <see cref="IInteractionCondition.IsAvailable"/> answered false, and free to change
+        /// with state ("Locked" today, "Needs power" tomorrow). Null means nothing to show.</summary>
+        LocalizedText Reason { get; }
     }
 
     /// <summary>The execution seam that makes genre differences possible: when set on

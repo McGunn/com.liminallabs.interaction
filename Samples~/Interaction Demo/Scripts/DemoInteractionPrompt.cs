@@ -1,12 +1,13 @@
 using UnityEngine;
+using LiminalLabs.Core.Localization;
 
 namespace LiminalLabs.Interaction.Demo
 {
     /// <summary>
     /// A reference presenter: a world-space prompt that follows whichever interactor
     /// is active, reading only public hooks — focus, verb, hold progress, last
-    /// rejection. This is the pattern for building your own prompt/outline/cursor
-    /// systems: the core never draws UI; presenters listen.
+    /// rejection, and the reason a condition gives. This is the pattern for building
+    /// your own prompt/outline/cursor systems: the core never draws UI; presenters listen.
     /// </summary>
     [RequireComponent(typeof(TextMesh))]
     public class DemoInteractionPrompt : MonoBehaviour
@@ -33,9 +34,14 @@ namespace LiminalLabs.Interaction.Demo
             string line = $"{verbName} — {focus.DisplayName}";
 
             var context = new InteractionContext(interactor, focus, verb, focus.InteractionPoint);
-            if (interactor.Validate(context) == InteractionRejection.VerbUnavailable)
+            if (interactor.Validate(context, out IInteractionCondition blocker) == InteractionRejection.VerbUnavailable)
             {
-                line += "  (locked)";
+                // The condition says why when it can, in the player's language; a condition
+                // that only says no still reads as locked. The prompt knows nothing about
+                // levers or keys either way.
+                LocalizedText reason = Interactor.ReasonOf(blocker);
+                string text = reason != null ? reason.GetLocalized() : null;
+                line += string.IsNullOrEmpty(text) ? "  (locked)" : $"\n{text}";
             }
             else if (interactor.IsHolding)
             {

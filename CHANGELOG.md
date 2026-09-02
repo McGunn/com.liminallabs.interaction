@@ -5,6 +5,23 @@ All notable changes to this package are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) and this
 project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0] - 2026-09-01
+
+### Added
+
+- **Why, in the player's language.** A condition may implement `IInteractionRefusal` beside
+  `IInteractionCondition` and offer a `LocalizedText` reason. The interactor records it as
+  `LastReason` with the refusal and clears it with the rejection; `Interactor.ReasonOf(blocker)`
+  answers for a focus the player has not pressed on yet, which is what a prompt wants. The demo
+  prompt shows it under the verb ("Locked — pull the lever"), and the F3 overlay, the Interactor
+  inspector and `interact.state` show what the player sees. A condition that only says no still
+  works everywhere and reads as locked; the inspector says it gives no reason.
+
+### Tests
+
+- 34 (was 31): a reason recorded and cleared with the rejection, a mute condition leaving it
+  null, and `ReasonOf` before any attempt.
+
 ## [0.2.0] - 2026-09-01
 
 ### Added

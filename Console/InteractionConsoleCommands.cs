@@ -55,6 +55,9 @@ namespace LiminalLabs.Interaction.Console
                     Row("refused by", interactor.LastBlocker != null
                         ? ConsoleMarkup.Warn(Interactor.Describe(interactor.LastBlocker))
                         : ConsoleMarkup.Dim("no condition")),
+                    Row("player sees", interactor.LastReasonText != null
+                        ? ConsoleMarkup.Value("\"" + interactor.LastReasonText + "\"")
+                        : ConsoleMarkup.Dim("nothing")),
                 };
 
                 context.Table(rows, 16);

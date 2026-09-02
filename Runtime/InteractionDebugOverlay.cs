@@ -70,6 +70,10 @@ namespace LiminalLabs.Interaction
                         ? "  ·  by " + Interactor.Describe(interactor.LastBlocker)
                         : "";
                     GUILayout.Label($"  <color=#ffb060>last rejection: {interactor.LastRejection}{blocker}</color>", Rich());
+
+                    string reason = interactor.LastReasonText;
+                    if (reason != null)
+                        GUILayout.Label($"  <color=#ffb060>player sees: \"{reason}\"</color>", Rich());
                 }
             }
             GUILayout.EndArea();

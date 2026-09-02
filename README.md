@@ -82,9 +82,18 @@ verb not offered, condition failed, target disabled, focus lost mid-hold. When
 a condition refused, `LastBlocker` is the one that did, and
 `Interactor.Describe` names it the way a designer would find it — "KeyLock on
 Chest" — so a prompt can say *locked* instead of nothing, and a designer with
-three conditions on a chest is told which one said no. **F3** (with an
-Interaction Debug Overlay in the scene) shows every interactor's focus,
-ranked candidates with scores, hold progress, and last rejection with its
-blocker, live. The Interactor inspector shows the same in play mode with a
-button that selects the blocking condition, and Setup & Validation flags
-detector-less interactors and collider-less or verb-less interactables.
+three conditions on a chest is told which one said no.
+
+A condition can also say **why, in the player's language**: implement
+`IInteractionRefusal` beside `IInteractionCondition` and return a
+`LocalizedText`. The interactor records it as `LastReason` with the refusal,
+and `Interactor.ReasonOf(blocker)` answers for a focus the player has not
+pressed on yet — so a prompt reads "Locked — pull the lever" without knowing
+what a lever is. A condition that only says no still reads as locked.
+
+**F3** (with an Interaction Debug Overlay in the scene) shows every
+interactor's focus, ranked candidates with scores, hold progress, and last
+rejection with its blocker and what the player was told, live. The Interactor
+inspector shows the same in play mode with a button that selects the blocking
+condition, and Setup & Validation flags detector-less interactors and
+collider-less or verb-less interactables.

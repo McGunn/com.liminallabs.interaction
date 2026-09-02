@@ -49,7 +49,13 @@ namespace LiminalLabs.Interaction
                     string blocker = interactor.LastBlocker != null
                         ? $"\nRefused by {Interactor.Describe(interactor.LastBlocker)}."
                         : "";
-                    EditorGUILayout.HelpBox($"Last rejection: {interactor.LastRejection}{blocker}", MessageType.Warning);
+                    string reason = interactor.LastReasonText;
+                    string shown = reason != null
+                        ? $"\nThe player sees: \"{reason}\""
+                        : interactor.LastBlocker != null
+                            ? "\nIt gives no player-facing reason (implement IInteractionRefusal to add one)."
+                            : "";
+                    EditorGUILayout.HelpBox($"Last rejection: {interactor.LastRejection}{blocker}{shown}", MessageType.Warning);
                     if (interactor.LastBlocker is Component component && component != null &&
                         GUILayout.Button("Select the condition", EditorStyles.miniButton))
                     {
