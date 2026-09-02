@@ -43,7 +43,8 @@ namespace LiminalLabs.Interaction.Demo
 
         void Update()
         {
-            Vector2 look = DemoInput.Look * lookSensitivity;
+            DemoInput.MouseSensitivity = lookSensitivity * 0.05f;
+            Vector2 look = DemoInput.LookDelta;   // degrees this frame, mouse or stick
             yaw += look.x;
             pitch = Mathf.Clamp(pitch - look.y, -80f, 80f);
             transform.rotation = Quaternion.Euler(0f, yaw, 0f);

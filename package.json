@@ -1,12 +1,14 @@
-﻿{
+{
   "name": "com.liminallabs.interaction",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "displayName": "Liminal Labs Interaction",
   "description": "Genre-agnostic interaction: one core (interactables, verb assets, validation, hold-to-interact, request-handler seam) with pluggable detection per genre - ray (FPS), proximity (third person), pointer (point-and-click / CRPG) - and presentation as hooks, never baked in. Built on Liminal Labs Game Events for decoupled reactions; every rejection is answerable via the debug overlay.",
   "unity": "6000.0",
-  "author": { "name": "Liminal Labs" },
+  "author": {
+    "name": "Liminal Labs"
+  },
   "dependencies": {
-    "com.liminallabs.core": "0.1.2",
+    "com.liminallabs.core": "0.4.8",
     "com.liminallabs.gameevents": "0.2.0"
   },
   "samples": [
